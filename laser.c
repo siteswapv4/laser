@@ -81,7 +81,8 @@ SDL_AppResult SDL_AppInit(void** userdata, int argc, char* argv[])
     
     EXPECT(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD), "%s", SDL_GetError());
     EXPECT(SDL_CreateWindowAndRenderer("game", 500, 500, 0, &app->window, &app->renderer), "%s", SDL_GetError());
-    SDL_SetRenderVSync(app->renderer, 1);
+    SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
+    SDL_SetHint(SDL_HINT_RENDER_LINE_METHOD, "3");
     SDL_srand(0);
     
     InitGameplay(app);
