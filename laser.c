@@ -86,7 +86,7 @@ SDL_AppResult SDL_AppInit(void** userdata, int argc, char* argv[])
     app->window_center.y = WINDOW_HEIGHT / 2.0f;
     
     app->player_position.x = app->window_center.x;
-    app->player_position.y = app->window_center.y * 2.0f;
+    app->player_position.y = WINDOW_HEIGHT;
     
     InitGameplay(app);
 
@@ -121,6 +121,13 @@ SDL_AppResult SDL_AppEvent(void* userdata, SDL_Event* event)
     {
         if (event->button.button == SDL_BUTTON_LEFT) app->mouse_down = false;
     }
+    else if ((event->type == SDL_EVENT_KEY_DOWN) && !event->key.repeat)
+    {
+        if (event->key.scancode == SDL_SCANCODE_F11)
+        {
+            SDL_SetWindowFullscreen(app->window, !(SDL_GetWindowFlags(app->window) & SDL_WINDOW_FULLSCREEN));
+        }
+    }
     
     return SDL_APP_CONTINUE;
     
@@ -135,11 +142,14 @@ Target NewTarget(AppState* app)
     target.rect.w = 50.0f;
     target.rect.h = 50.0f;
     
-    target.rect.x = SDL_rand(app->window_center.x * 2 - target.rect.w);
-    target.rect.y = app->window_center.y * 2 - target.rect.h;
+    target.rect.x = SDL_rand(app->window_center.x / 2); 
+    if (SDL_rand(2))
+        target.rect.x = WINDOW_WIDTH - target.rect.w - target.rect.x;
+
+    target.rect.y = WINDOW_HEIGHT - target.rect.h;
     
-    target.velocity = (SDL_FPoint){SDL_rand(200) - 100, -(600 + SDL_rand(300))};
-    target.acceleration = (SDL_FPoint){0.0f, 1000.0f};
+    target.velocity = (SDL_FPoint){SDL_rand(600) - 300, -(600 + SDL_rand(300))};
+    target.acceleration = (SDL_FPoint){0.0f, 900.0f};
     
     target.friend = SDL_rand(2);
     
@@ -177,7 +187,8 @@ void Logic(AppState* app)
         app->targets[i].rect.x += app->targets[i].velocity.x * DT;
         app->targets[i].rect.y += app->targets[i].velocity.y * DT;
         
-        if ((app->targets[i].rect.y > app->window_center.y * 2) && (app->targets[i].velocity.y > 0))
+        if (((app->targets[i].rect.y > WINDOW_HEIGHT) && (app->targets[i].velocity.y > 0)) ||
+            (app->targets[i].rect.x > WINDOW_WIDTH) || (app->targets[i].rect.x + app->targets[i].rect.w < 0))
         {
             RemoveTarget(app, i);
         }
@@ -208,7 +219,7 @@ void Render(AppState* app)
         else
             SDL_SetRenderDrawColor(app->renderer, TARGET_ENNEMY_COLOR.r, TARGET_ENNEMY_COLOR.g, TARGET_ENNEMY_COLOR.b, TARGET_ENNEMY_COLOR.a);
 
-        SDL_RenderRect(app->renderer, &app->targets[i].rect);
+        SDL_RenderFillRect(app->renderer, &app->targets[i].rect);
     }
 
     if (app->mouse_down)
@@ -222,7 +233,7 @@ void Render(AppState* app)
     SDL_RenderDebugTextFormat(app->renderer, 0.0f, 0.0f, "LIFE : %d", app->life);
     char buf[255];
     SDL_snprintf(buf, 255, "SCORE : %d", app->score);
-    SDL_RenderDebugText(app->renderer, app->window_center.y * 2 - (SDL_strlen(buf) * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE), 0.0f, buf);
+    SDL_RenderDebugText(app->renderer, WINDOW_WIDTH - (SDL_strlen(buf) * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE), 0.0f, buf);
 }
 
 void Gameplay(AppState* app)
