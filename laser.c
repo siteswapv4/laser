@@ -13,6 +13,9 @@
 #define MAX_TARGETS 100
 #define DEFAULT_LIFE 3
 
+#define WINDOW_WIDTH 500
+#define WINDOW_HEIGHT 500
+
 static const SDL_Color LINE_DEFAULT_COLOR = {255, 255, 255, 255};
 static const SDL_Color LINE_ATTACK_COLOR = {255, 50, 50, 255};
 
@@ -59,13 +62,6 @@ typedef struct AppState
 
 void InitGameplay(AppState* app)
 {
-    SDL_GetWindowSize(app->window, &app->window_center.x, &app->window_center.y);
-    app->window_center.x /= 2;
-    app->window_center.y /= 2;
-    
-    app->player_position.x = app->window_center.x;
-    app->player_position.y = app->window_center.y * 2.0f;
-    
     app->life = DEFAULT_LIFE;
     app->score = 0;
     
@@ -80,10 +76,17 @@ SDL_AppResult SDL_AppInit(void** userdata, int argc, char* argv[])
     *userdata = app;
     
     EXPECT(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD), "%s", SDL_GetError());
-    EXPECT(SDL_CreateWindowAndRenderer("game", 500, 500, 0, &app->window, &app->renderer), "%s", SDL_GetError());
+    EXPECT(SDL_CreateWindowAndRenderer("laser", WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE, &app->window, &app->renderer), "%s", SDL_GetError());
+    SDL_SetRenderLogicalPresentation(app->renderer, 500, 500, SDL_LOGICAL_PRESENTATION_LETTERBOX);
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
     SDL_SetHint(SDL_HINT_RENDER_LINE_METHOD, "3");
     SDL_srand(0);
+    
+    app->window_center.x = WINDOW_WIDTH / 2.0f;
+    app->window_center.y = WINDOW_HEIGHT / 2.0f;
+    
+    app->player_position.x = app->window_center.x;
+    app->player_position.y = app->window_center.y * 2.0f;
     
     InitGameplay(app);
 
@@ -96,6 +99,8 @@ error:
 SDL_AppResult SDL_AppEvent(void* userdata, SDL_Event* event)
 {
     AppState* app = userdata;
+    
+    SDL_ConvertEventToRenderCoordinates(app->renderer, event);
     
     if (event->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
     
