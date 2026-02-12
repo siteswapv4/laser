@@ -43,13 +43,20 @@ typedef struct AppState
 {
     SDL_Window* window;
     SDL_Renderer* renderer;
+    SDL_AudioStream* stream;
     
+    Uint8* music_data;
+    Uint32 music_data_length;
+        
     SDL_Point window_center;
     SDL_FPoint mouse_position;
     SDL_FPoint player_position;
     SDL_FPoint end_position;
     bool mouse_down;
     bool mouse_was_down;
+    
+    SDL_Texture* friend_texture;
+    SDL_Texture* ennemy_texture;
     
     AppPhase phase;
     
@@ -59,6 +66,17 @@ typedef struct AppState
     int life;
     int score;
 }AppState;
+
+SDL_Texture* LoadPNG(SDL_Renderer* renderer, const char* path)
+{
+    SDL_Surface* surface = SDL_LoadPNG(path);
+    if (!surface) return NULL;
+    
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_DestroySurface(surface);
+    
+    return texture;
+}
 
 void InitGameplay(AppState* app)
 {
@@ -75,12 +93,34 @@ SDL_AppResult SDL_AppInit(void** userdata, int argc, char* argv[])
     AppState* app = SDL_calloc(1, sizeof(AppState));
     *userdata = app;
     
-    EXPECT(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD), "%s", SDL_GetError());
+    EXPECT(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO), "%s", SDL_GetError());
     EXPECT(SDL_CreateWindowAndRenderer("laser", WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE, &app->window, &app->renderer), "%s", SDL_GetError());
     SDL_SetRenderLogicalPresentation(app->renderer, 500, 500, SDL_LOGICAL_PRESENTATION_LETTERBOX);
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
     SDL_SetHint(SDL_HINT_RENDER_LINE_METHOD, "3");
     SDL_srand(0);
+    
+    SDL_AudioSpec spec;
+    char* path;
+    SDL_asprintf(&path, "%s/music.wav", SDL_GetBasePath());
+    bool ret = SDL_LoadWAV(path, &spec, &app->music_data, &app->music_data_length);
+    SDL_free(path);
+    EXPECT(ret, "%s", SDL_GetError());
+    
+    app->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+    EXPECT(app->stream, "%s", SDL_GetError());
+    
+    SDL_ResumeAudioStreamDevice(app->stream);
+    
+    SDL_asprintf(&path, "%s/friend.png", SDL_GetBasePath());
+    app->friend_texture = LoadPNG(app->renderer, path);
+    SDL_free(path);
+    EXPECT(app->friend_texture, "%s", SDL_GetError());
+    
+    SDL_asprintf(&path, "%s/ennemy.png", SDL_GetBasePath());
+    app->ennemy_texture = LoadPNG(app->renderer, path);
+    SDL_free(path);
+    EXPECT(app->ennemy_texture, "%s", SDL_GetError());
     
     app->window_center.x = WINDOW_WIDTH / 2.0f;
     app->window_center.y = WINDOW_HEIGHT / 2.0f;
@@ -207,19 +247,17 @@ void Logic(AppState* app)
     }
     
     if (app->life <= 0)
+    {
+        SDL_ClearAudioStream(app->stream);
         app->phase = APP_PHASE_RESULT;
+    }
 }
 
 void Render(AppState* app)
 {
     for (int i = 0; i < app->num_targets; i++)
     {
-        if (app->targets[i].friend)
-            SDL_SetRenderDrawColor(app->renderer, TARGET_FRIEND_COLOR.r, TARGET_FRIEND_COLOR.g, TARGET_FRIEND_COLOR.b, TARGET_FRIEND_COLOR.a);
-        else
-            SDL_SetRenderDrawColor(app->renderer, TARGET_ENNEMY_COLOR.r, TARGET_ENNEMY_COLOR.g, TARGET_ENNEMY_COLOR.b, TARGET_ENNEMY_COLOR.a);
-
-        SDL_RenderFillRect(app->renderer, &app->targets[i].rect);
+        SDL_RenderTexture(app->renderer, app->targets[i].friend ? app->friend_texture : app->ennemy_texture, NULL, &app->targets[i].rect);
     }
 
     if (app->mouse_down)
@@ -238,6 +276,9 @@ void Render(AppState* app)
 
 void Gameplay(AppState* app)
 {
+    if (SDL_GetAudioStreamQueued(app->stream) < (int)app->music_data_length) {
+        SDL_PutAudioStreamData(app->stream, app->music_data, app->music_data_length);
+    }
     Logic(app);
     Render(app);
 }
@@ -280,5 +321,11 @@ SDL_AppResult SDL_AppIterate(void* userdata)
 
 void SDL_AppQuit(void* userdata, SDL_AppResult result)
 {
-    if (userdata) SDL_free(userdata);
+    AppState* app = userdata;
+    
+    if (!app) return;
+    if (app->music_data) SDL_free(app->music_data);
+    if (app->friend_texture) SDL_DestroyTexture(app->friend_texture);
+    if (app->ennemy_texture) SDL_DestroyTexture(app->ennemy_texture);
+    SDL_free(app);
 }
